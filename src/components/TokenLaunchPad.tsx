@@ -1,6 +1,12 @@
+import { createAssociatedTokenAccountInstruction, createInitializeMetadataPointerInstruction, createInitializeMintInstruction, createMintToInstruction, ExtensionType,  getAssociatedTokenAddressSync,  getMintLen, LENGTH_SIZE, MINT_SIZE, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, TYPE_SIZE } from '@solana/spl-token';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { Keypair, SystemProgram, Transaction } from '@solana/web3.js';
+import { createInitializeInstruction, pack } from '@solana/spl-token-metadata';
 import { useState } from 'react';
 
 export function TokenLaunchPad() {
+    const wallet = useWallet();
+    const { connection } = useConnection();
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
@@ -13,7 +19,7 @@ export function TokenLaunchPad() {
         e.preventDefault();
         setIsLoading(true);
         try {
-            // Simulate token creation
+           
             await new Promise(resolve => setTimeout(resolve, 2000));
             alert('Token created successfully!');
         } catch (error) {
@@ -22,10 +28,95 @@ export function TokenLaunchPad() {
             setIsLoading(false);
         }
     };
+  
+        async function createToken() {
+            const mintKeypair = Keypair.generate();
+            const metadata = {
+                mint: mintKeypair.publicKey,
+                name: 'G07',
+                symbol: 'SG',
+                uri: "https://cdn.100xdevs.com/metadata.json",
+                additionalMetadata:[]
+            }
+
+            const mintLen = getMintLen([ExtensionType.MetadataPointer]);
+            const metadataLen = TYPE_SIZE + LENGTH_SIZE + pack(metadata).length;
+            const lamports = await connection.getMinimumBalanceForRentExemption(mintLen + metadataLen);
+
+    
+            const transaction = new Transaction().add(
+                SystemProgram.createAccount({
+                    fromPubkey: wallet.publicKey!,
+                    newAccountPubkey: mintKeypair.publicKey,
+                    space: MINT_SIZE,
+                    lamports,
+                    programId: TOKEN_PROGRAM_ID,
+                }),
+                createInitializeMetadataPointerInstruction(mintKeypair.publicKey, wallet.publicKey, mintKeypair.publicKey, TOKEN_2022_PROGRAM_ID),
+                createInitializeMintInstruction(mintKeypair.publicKey, 9, wallet.publicKey!, null, TOKEN_2022_PROGRAM_ID),
+                createInitializeInstruction({
+                     programId: TOKEN_2022_PROGRAM_ID,
+                     mint: mintKeypair.publicKey,
+                     metadata: mintKeypair.publicKey,
+                     name: metadata.name,
+                     symbol: metadata.symbol,
+                     uri: metadata.uri,
+                     mintAuthority: wallet.publicKey!,
+                     updateAuthority: wallet.publicKey!,
+                })
+            );
+
+            if (wallet.publicKey) {
+                transaction.feePayer = wallet.publicKey;
+            } else {
+                throw new Error('Wallet public key is null');
+            }
+             transaction.feePayer = wallet.publicKey!;
+            transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+            transaction.partialSign(mintKeypair);
+    
+            await wallet.sendTransaction(transaction, connection);
+
+            console.log(`Token mint created at ${mintKeypair.publicKey.toBase58()}`);
+            const associatedToken = getAssociatedTokenAddressSync(
+                mintKeypair.publicKey,
+                wallet.publicKey!,
+                false,
+                TOKEN_2022_PROGRAM_ID,
+            );
+
+            console.log(associatedToken.toBase58());
+
+            const transaction2 = new Transaction().add(
+                createAssociatedTokenAccountInstruction(
+                    wallet.publicKey,
+                    associatedToken,
+                    wallet.publicKey,
+                    mintKeypair.publicKey,
+                    TOKEN_2022_PROGRAM_ID,
+                ),
+            );
+            await wallet.sendTransaction(transaction2, connection);
+
+            const transaction3 = new Transaction().add(
+                createMintToInstruction(
+                    mintKeypair.publicKey,
+                    associatedToken,
+                    wallet.publicKey,
+                    1000000000,
+                    [],
+                    TOKEN_2022_PROGRAM_ID
+
+                )
+            )
+            await wallet.sendTransaction(transaction3, connection);
+            console.log(`Token minted to ${associatedToken.toBase58()}`);
+            
+        }
+    
 
     return (
         <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-            {/* Floating orbs background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 {[...Array(3)].map((_, i) => (
                     <div
@@ -110,6 +201,7 @@ export function TokenLaunchPad() {
                         <button
                             type="submit"
                             disabled={isLoading}
+                            onClick={createToken}
                             className="w-full flex justify-center py-4 px-6 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 hover:from-teal-600 hover:via-blue-600 hover:to-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 relative overflow-hidden"
                         >
                             <span className="relative z-10">

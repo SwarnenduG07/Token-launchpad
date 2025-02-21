@@ -1,8 +1,12 @@
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
 import './App.css'
 import { TokenLaunchPad } from './components/TokenLaunchPad'
-import { WalletModalProvider, WalletMultiButton, WalletDisconnectButton } from '@solana/wallet-adapter-react-ui'
-
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import {
+    WalletModalProvider,
+    WalletDisconnectButton,
+    WalletMultiButton
+} from '@solana/wallet-adapter-react-ui';
+import '@solana/wallet-adapter-react-ui/styles.css';
 function App() {
   return (
    <main className="relative bg-[#0A0F1C]">
@@ -13,9 +17,9 @@ function App() {
       <ConnectionProvider endpoint={"https://api.devnet.solana.com"}>
         <WalletProvider wallets={[]} autoConnect>
             <WalletModalProvider>
-              <div className='text-amber-200 bg-red-400 flex justify-between'>
+              <div className='flex justify-between'>
                 <WalletMultiButton />
-                <WalletDisconnectButton />
+                <WalletDisconnectButton className='bg-fuchsia-500' />
               </div>
               <TokenLaunchPad/>
             </WalletModalProvider>
